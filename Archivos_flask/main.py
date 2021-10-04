@@ -371,7 +371,150 @@ try:
 
         return jsonify(rows)
     
+    @app.route('/consulta5', methods=['GET'])
+    def consulta5():
+        cur.execute("""select c.nombre as pais,c.apellido,pa.nombre,count(r.id_cliente)*100/count(r.id_renta) as porcentaje
+        from clientes as c inner join rentas as r on r.id_cliente=c.id_cliente
+        inner join direccion as d on c.direccion=d.id_direccion
+        inner join ciudad as ciu on d.id_ciudad=ciu.id_ciudad
+        inner join pais as pa on ciu.pais=pa.id_pais
+        group by (c.nombre,c.apellido,pa.nombre)
+        having count(r.id_cliente)>=(select max(pruebas.total)
+        from(select id_cliente,count(id_cliente) as total from rentas group by id_cliente order by total) as pruebas) """)
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
     
+    @app.route('/consulta6', methods=['GET'])
+    def consulta6():
+        cur.execute("""select paises.pais,ciudades.ciudad,paises.clientes_pais,ciudades.cliente_ciudad,
+        100/ciudades.cliente_ciudad as porcentaje_ciudad,ciudades.cliente_ciudad*100/paises.clientes_pais as porcentaje_pais
+        from (select p.nombre as pais,count(id_cliente) as clientes_pais
+            from clientes as c inner join direccion as d on d.id_direccion=c.direccion
+            inner join ciudad as ci on d.id_ciudad=ci.id_ciudad
+            inner join pais as p on ci.pais=p.id_pais
+            group by p.nombre)as paises
+        inner join
+            (select pa.nombre as pais,nombre_ciudad as ciudad ,count(id_cliente) as cliente_ciudad
+            from clientes as c inner join direccion as d on d.id_direccion=c.direccion
+            inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+            inner join pais as pa on pa.id_pais=ci.pais
+            group by (nombre_ciudad,pa.nombre)) as ciudades on ciudades.pais=paises.pais
+            order by paises.pais""")
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
+    
+    @app.route('/consulta7', methods=['GET'])
+    def consulta7():
+        cur.execute("""select num_rentas.pais,num_rentas.ciudad, num_rentas.t_rentas/count(num_ciudades.ciudad) as promedio
+        from 
+            (select p.nombre as pais,ci.nombre_ciudad as ciudad,count(r.id_cliente) as t_rentas,count(ci.id_ciudad) as t_ciudad
+            from clientes as c inner join rentas as r on r.id_cliente=c.id_cliente
+            inner join direccion as d on d.id_direccion=c.direccion
+            inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+            inner join pais as p on p.id_pais=ci.pais
+            group by (p.nombre,ci.nombre_ciudad)
+            order by p.nombre) as num_rentas
+        inner join 
+            (select id_ciudad as ciudad,nombre from ciudad inner join pais on ciudad.pais=pais.id_pais
+            ) as num_ciudades 
+        on num_rentas.pais=num_ciudades.nombre
+        group by(num_rentas.pais,num_rentas.ciudad,num_rentas.t_ciudad,num_rentas.t_rentas)
+        order by num_rentas.pais""")
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
+    
+    @app.route('/consulta8', methods=['GET'])
+    def consulta8():
+        cur.execute("""select t_rentas.pais, round(100/sum(t_rentas.ren))::varchar as porcentaje
+        from 
+        (select ci.nombre_ciudad,p.nombre as pais,count(r.id_cliente) as ren
+        from rentas as r inner join clientes as c on r.id_cliente=c.id_cliente
+        inner join direccion as d on c.direccion=d.id_direccion
+        inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+        inner join pais as p on p.id_pais=ci.pais
+        inner join peliculas as pe on pe.id_pelicula=r.id_pelicula
+        inner join pelicula_categoria as pc on pc.id_pelicula=pe.id_pelicula
+        inner join categoria as ca on ca.id_categoria=pc.id_categoria
+        where ca.categoria='Sports'
+        group by (ci.nombre_ciudad,p.nombre)
+        order by p.nombre) as t_rentas
+        group by t_rentas.pais
+        order by t_rentas.pais""")
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
+    
+    @app.route('/consulta9', methods=['GET'])
+    def consulta9():
+        cur.execute("""select nombre_ciudad,p.nombre,count(r.id_cliente) as total
+        from rentas as r inner join clientes as c on r.id_cliente=c.id_cliente
+        inner join direccion as d on c.direccion=d.id_direccion
+        inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+        inner join pais as p on p.id_pais=ci.pais
+        group by nombre_ciudad,p.nombre
+        having count(r.id_cliente)>(select count(r.id_cliente)
+        from rentas as r inner join clientes as c on r.id_cliente=c.id_cliente
+        inner join direccion as d on c.direccion=d.id_direccion
+        inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+        inner join pais as p on p.id_pais=ci.pais
+        where p.nombre='United States' and ci.nombre_ciudad='Dayton'
+        group by (ci.nombre_ciudad)
+        ) and p.nombre='United States'
+        order by total""")
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
+    
+    @app.route('/consulta10', methods=['GET'])
+    def consulta10():
+        cur.execute("""select total_horror.pais,total_horror.ciudad
+        from
+            (select total.pais as pais,total.ciudad as ciudad,max(total.ren) as mayor
+            from
+                (select ci.nombre_ciudad as ciudad,p.nombre as pais,ca.categoria as categoria,count(r.id_cliente) as ren
+                from rentas as r inner join clientes as c on r.id_cliente=c.id_cliente
+                inner join direccion as d on c.direccion=d.id_direccion
+                inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+                inner join pais as p on p.id_pais=ci.pais
+                inner join peliculas as pe on pe.id_pelicula=r.id_pelicula
+                inner join pelicula_categoria as pc on pc.id_pelicula=pe.id_pelicula
+                inner join categoria as ca on ca.id_categoria=pc.id_categoria
+                group by (ci.nombre_ciudad,p.nombre,ca.categoria)
+                order by p.nombre) as total
+            group by total.pais,total.ciudad
+            order by total.pais) as total2
+        inner join
+            (select ci.nombre_ciudad as ciudad,p.nombre as pais,count(r.id_cliente) as ren
+            from rentas as r inner join clientes as c on r.id_cliente=c.id_cliente
+            inner join direccion as d on c.direccion=d.id_direccion
+            inner join ciudad as ci on ci.id_ciudad=d.id_ciudad
+            inner join pais as p on p.id_pais=ci.pais
+            inner join peliculas as pe on pe.id_pelicula=r.id_pelicula
+            inner join pelicula_categoria as pc on pc.id_pelicula=pe.id_pelicula
+            inner join categoria as ca on ca.id_categoria=pc.id_categoria
+            where categoria='Horror'
+            group by (ci.nombre_ciudad,p.nombre)
+            order by p.nombre
+            ) as total_horror
+        on total_horror.ren=total2.mayor and total_horror.pais=total2.pais and total_horror.ciudad=total2.ciudad""")
+        rows = cur.fetchall()
+        cur.close()
+        print(rows)
+
+        return jsonify(rows)
   
     
     if __name__ == "__main__":
